@@ -1,6 +1,8 @@
 import { SYSTEM_CONFIG } from '../constants';
 
-const TTS_API_URL = 'http://192.168.0.2:8000/tts'; // Update this with your deployed URL
+// Backend TTS API (Docker default): http://localhost:8000
+// You can override at build time with VITE_TTS_API_BASE_URL.
+const TTS_API_BASE_URL = import.meta.env.VITE_TTS_API_BASE_URL ?? 'http://localhost:8000';
 
 let currentAudio: HTMLAudioElement | null = null;
 
@@ -9,6 +11,35 @@ export const stopCustomSpeech = () => {
     currentAudio.pause();
     currentAudio.currentTime = 0;
     currentAudio = null;
+  }
+};
+
+export const playAudioUrl = async (audioUrl: string, onEnd?: () => void) => {
+  stopCustomSpeech();
+
+  try {
+    const audio = new Audio(audioUrl);
+    currentAudio = audio;
+
+    audio.onended = () => {
+      if (currentAudio === audio) {
+        currentAudio = null;
+      }
+      if (onEnd) onEnd();
+    };
+
+    audio.onerror = (e) => {
+      console.error('Pre-recorded audio playback error', e);
+      if (currentAudio === audio) {
+        currentAudio = null;
+      }
+      if (onEnd) onEnd();
+    };
+
+    await audio.play();
+  } catch (error) {
+    console.error('Failed to play pre-recorded audio:', error);
+    if (onEnd) onEnd();
   }
 };
 
@@ -23,22 +54,16 @@ export const playCustomTTS = async (
   // Determine effective speed (default to 1.0 if not specified)
   const speed = options.speed ?? 1.0;
   const gender = options.gender ?? 'male';
-  const engine = options.engine ?? 'gemini';
+
+  const engine = options.engine ?? 'auto';
 
   try {
-    const response = await fetch(TTS_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text,
-        speaker_id: 0, 
-        speed: speed,
-        gender: gender,
-        engine: engine,
-      }),
-    });
+    const url = new URL('/tts', TTS_API_BASE_URL);
+    url.searchParams.set('text', text);
+    url.searchParams.set('speed', String(speed));
+    url.searchParams.set('sid', '0');
+
+    const response = await fetch(url.toString(), { method: 'POST' });
 
     if (!response.ok) {
       throw new Error(`TTS API Error: ${response.statusText}`);
@@ -75,6 +100,13 @@ export const playCustomTTS = async (
     await audio.play();
 
   } catch (error) {
+    // If caller explicitly wants backend/local engine, do NOT fall back.
+    if (engine === 'local') {
+      console.error('Failed to play custom TTS (Backend) with engine=local:', error);
+      if (onEnd) onEnd();
+      throw error;
+    }
+
     console.error("Failed to play custom TTS (Backend), falling back to Browser Native TTS:", error);
     
     // Fallback: Use Browser Native TTS (window.speechSynthesis)

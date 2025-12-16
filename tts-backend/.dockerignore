@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+
+# Local models are huge; default image expects volume mount or DOWNLOAD_MODELS=1
+models/
+
+# Local artifacts
+*.wav
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ModelScope temp folders (if any end up in context)
+.msc/
+.mv/
+._____temp/

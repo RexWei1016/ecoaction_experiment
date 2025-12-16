@@ -20,7 +20,13 @@ __pycache__/
 venv/
 env/
 tts-backend/models/
+!tts-backend/models/**/.gitkeep
 test_*.mp3
+
+# Generated audio
+tts-backend/output.wav
+tts-backend/out.wav
+tts-backend/*.wav
 
 # Editor directories and files
 .vscode/*

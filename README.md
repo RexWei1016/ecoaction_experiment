@@ -13,10 +13,9 @@
 
 *   **互動式對話**: 透過 Typewriter 打字機效果呈現引導語。
 *   **多媒體整合**: 嵌入 YouTube 影片與即時語音播放。
-*   **雙引擎 TTS 後端**:
-    *   **Local (Sherpa-ONNX)**: 使用 VITS 模型 (Huayan) 進行本地離線語音合成，速度快且無須聯網。
-    *   **Cloud Fallback (gTTS)**: 當本地模型失敗或未下載時，自動切換至 Google TTS 服務。
-*   **參數化控制**: 支援調整語速 (Speed)、性別 (Gender) 與引擎選擇 (Engine)。
+*   **離線 TTS 後端**:
+  *   **Sherpa-ONNX (MatchaTTS zh + en)**：完全離線、支援繁中＋英文、CPU 即可部署。
+*   **參數化控制**: 支援調整語速 (Speed) 與 speaker id（sid）。
 
 ---
 
@@ -54,10 +53,14 @@ cd tts-backend
 pip install -r requirements.txt
 
 # 啟動服務
-python app.py
+uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
 後端服務預設運行於: `http://localhost:8000`
+
+前端可用 Vite 環境變數指定 TTS 端點（預設 `http://localhost:8000/tts`）：
+
+* `VITE_TTS_API_URL=http://localhost:8000/tts`
 
 ---
 
@@ -69,29 +72,11 @@ python app.py
 
 將文字轉換為語音音訊串流。
 
-**Request Body (JSON):**
+此後端以 query 參數為主：
 
-```json
-{
-  "text": "你好，歡迎參加實驗。",
-  "speed": 1.0,           // 語速 (預設 1.0)
-  "gender": "male",       // 性別 (目前主要影響前端顯示或特定模型選擇)
-  "engine": "auto"        // 引擎選擇: "auto" | "local" | "gtts"
-}
-```
-
-*   **engine**:
-    *   `auto` (推薦): 優先嘗試本地模型，若失敗自動切換至 gTTS。
-    *   `local`: 強制使用本地 Sherpa-ONNX 模型。
-    *   `gtts`: 強制使用 Google TTS。
+`POST /tts?text=...&speed=1.0&sid=0`
 
 ---
 
-## 關於 gTTS (Google Text-to-Speech)
 
-本專案使用 `gTTS` 作為備援方案。
-
-*   **性質**: 這是一個非官方的 Python 庫，透過介接 Google Translate 的 TTS API 來生成語音。
-*   **費用**: **免費**。該庫本身開源且免費，Google Translate 的公開 API 目前也是免費存取。
-*   **限制**: 雖然免費，但**並非無限用量**。Google 會對來自同一 IP 的大量請求進行頻率限制 (Rate Limiting)，若請求過於頻繁可能會暫時被封鎖 (HTTP 429)。
-*   **建議**: 僅建議作為開發測試或流量較低時的備援使用。正式高負載環境建議優先使用本地模型 (Sherpa-ONNX) 或付費商業 API。
+更多後端細節（模型下載、Docker 掛載模型等）請看：`tts-backend/README.md`。

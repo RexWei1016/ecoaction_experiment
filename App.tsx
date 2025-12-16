@@ -16,12 +16,13 @@ import {
   SCRIPTS, 
   QUIZ_OPTIONS, 
   COMMITMENT_QUESTIONS, 
-  ACTION_FEEDBACK_TEMPLATES,
+  SELF_IDENTITY_QUESTIONS,
+  PRE_RECORDED_AUDIO,
   VIDEO_URL
 } from './constants';
 
 // Use Custom TTS for generation capability (async loading)
-import { playCustomTTS as speakText, stopCustomSpeech as stopSpeech } from './services/customTtsService';
+import { playCustomTTS as speakText, playAudioUrl, stopCustomSpeech as stopSpeech } from './services/customTtsService';
 
 // Step order definition
 const STEP_SEQUENCE = [
@@ -36,8 +37,9 @@ const STEP_SEQUENCE = [
   StepId.STEP_08_COMMITMENT_SCALE,
   StepId.STEP_09_ORG_INTRO,
   StepId.STEP_10_ORG_FEEDBACK,
-  StepId.STEP_11_DONATION,
-  StepId.STEP_12_END,
+  StepId.STEP_11_SELF_IDENTITY_SCALE,
+  StepId.STEP_12_DONATION,
+  StepId.STEP_13_END,
 ];
 
 const App: React.FC = () => {
@@ -51,11 +53,36 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false); // General loading (e.g. API)
   const [inputValue, setInputValue] = useState('');
   const [isVideoFinished, setIsVideoFinished] = useState(false);
+  const hasUnlockedAudioRef = useRef(false);
   
   // Refs
   const currentStepId = STEP_SEQUENCE[currentStepIndex];
   const currentScript = SCRIPTS[currentStepId];
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const unlockAudio = useCallback(async () => {
+    if (hasUnlockedAudioRef.current) return;
+    hasUnlockedAudioRef.current = true;
+
+    try {
+      // Many browsers (especially mobile Safari/Chrome) block autoplay until audio is
+      // "unlocked" by a direct user gesture. We play a near-silent buffer once.
+      const AudioContextCtor = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!AudioContextCtor) return;
+
+      const ctx = new AudioContextCtor();
+      await ctx.resume();
+
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      source.stop(0.01);
+    } catch (e) {
+      console.warn('Audio unlock failed', e);
+    }
+  }, []);
 
   // Scroll to bottom helper
   const scrollToBottom = () => {
@@ -68,23 +95,34 @@ const App: React.FC = () => {
   const playScript = useCallback(async (text: string) => {
     setIsTTSLoading(true);
     setIsSpeaking(true);
-    // Keep text hidden while loading
-    
+
     try {
-      // speakText (playCustomTTS) is async and awaits generation (fetch)
-      // We pass the callback for when playback ends.
-      // 2nd arg is options, 3rd is onEnd.
       await speakText(text, {}, () => {
         setIsSpeaking(false);
       });
-      // Generation finished and playback started
-      setIsTextVisible(true); 
+      setIsTextVisible(true);
     } catch (e) {
-      console.error("TTS Error", e);
+      console.error('TTS Error', e);
       setIsSpeaking(false);
-      setIsTextVisible(true); // Show text even if TTS fails
+      setIsTextVisible(true);
     } finally {
-      setIsTTSLoading(false); // Generation is done
+      setIsTTSLoading(false);
+    }
+  }, []);
+
+  const playPreRecorded = useCallback(async (audioUrl: string) => {
+    setIsTTSLoading(false);
+    setIsSpeaking(true);
+
+    try {
+      await playAudioUrl(audioUrl, () => {
+        setIsSpeaking(false);
+      });
+      setIsTextVisible(true);
+    } catch (e) {
+      console.error('Audio Error', e);
+      setIsSpeaking(false);
+      setIsTextVisible(true);
     }
   }, []);
 
@@ -106,6 +144,7 @@ const App: React.FC = () => {
     
     // Determine the actual text to display/speak
     let textToPlay = currentScript.script;
+    let audioUrlToPlay: string | undefined = currentScript.audioUrl;
 
     // Replace Name Placeholder
     if (textToPlay.includes('{{name}}') || textToPlay.includes('{{NAME}}')) {
@@ -113,29 +152,74 @@ const App: React.FC = () => {
        textToPlay = textToPlay.replace(/{{NAME}}/gi, userData.name || '同學');
     }
 
-    // Logic for Step 4: Quiz Feedback
+    // Step 4: Quiz feedback (pick matching pre-recorded audio)
     if (currentStepId === StepId.STEP_04_SUSTAINABILITY_PRIME) {
       if (userData.quizAnswer !== 'A') {
-         textToPlay = textToPlay.replace('沒錯，', '其實影片主要是在談論永續議題喔。不過沒關係，正如影片所提到的，');
+        textToPlay = textToPlay.replace('沒錯，', '其實影片主要是在談論永續議題喔。不過沒關係，正如影片所提到的，');
+        audioUrlToPlay = PRE_RECORDED_AUDIO.STEP_04_PRIME_WRONG;
+      } else {
+        audioUrlToPlay = PRE_RECORDED_AUDIO.STEP_04_PRIME_CORRECT;
       }
     }
 
-    // Logic for Step 6: Dynamic Feedback
-    if (currentStepId === StepId.STEP_06_ACTION_FEEDBACK) {
-      textToPlay = ACTION_FEEDBACK_TEMPLATES[userData.actionCategory] || ACTION_FEEDBACK_TEMPLATES.NONE;
+    // Step 8: Branching intro based on (action none) vs (behavior plan answered)
+    if (currentStepId === StepId.STEP_08_COMMITMENT_SCALE) {
+      const hasBehaviorPlan = (userData.behaviorPlan || '').trim().length > 0;
+      if (userData.actionCategory === 'NONE') {
+        textToPlay = '接下來有個簡單的測驗想請你回答。';
+        audioUrlToPlay = PRE_RECORDED_AUDIO.STEP_08_SCALE_AFTER_NONE;
+      } else if (hasBehaviorPlan) {
+        textToPlay = '很棒，你真的是一個永續人，謝謝你的用心。接下來有個簡單的測驗想請你回答。';
+        audioUrlToPlay = PRE_RECORDED_AUDIO.STEP_08_SCALE_AFTER_YES_ANSWERED;
+      } else {
+        textToPlay = '那也沒關係，原本我跟你說的那些永續行動方法我覺得你一定也可以在生活中嘗試看看，我相信你一定可以成為一個永續人的。接下來有個簡單的測驗想請你回答。';
+        audioUrlToPlay = PRE_RECORDED_AUDIO.STEP_08_SCALE_AFTER_YES_EMPTY;
+      }
     }
 
     if (textToPlay) {
-      // Small delay to feel natural
       const timer = setTimeout(() => {
-        playScript(textToPlay);
-      }, 500);
+        // Special case: Only the name chanting uses live TTS.
+        if (currentStepId === StepId.STEP_02_VIDEO_INTRO) {
+          const name = (userData.name || '同學').trim() || '同學';
+          const nameChant = `${name}你好`;
+          setIsSpeaking(true);
+          setIsTTSLoading(true);
+
+          speakText(nameChant, { engine: 'local' }, async () => {
+            setIsTTSLoading(false);
+            if (audioUrlToPlay) {
+              await playPreRecorded(audioUrlToPlay);
+            } else {
+              setIsSpeaking(false);
+            }
+          }).then(() => {
+            setIsTextVisible(true);
+          }).catch((e) => {
+            console.error('Name TTS Error', e);
+            setIsTTSLoading(false);
+            if (audioUrlToPlay) {
+              playPreRecorded(audioUrlToPlay);
+            } else {
+              setIsSpeaking(false);
+            }
+            setIsTextVisible(true);
+          });
+          return;
+        }
+
+        if (audioUrlToPlay) {
+          playPreRecorded(audioUrlToPlay);
+        } else {
+          playScript(textToPlay);
+        }
+      }, 150);
       return () => clearTimeout(timer);
     } else {
         // If no text to play, show visible immediately
         setIsTextVisible(true);
     }
-  }, [currentStepId, playScript, userData.actionCategory, currentScript.script, hasStarted, userData.name, userData.quizAnswer]);
+  }, [currentStepId, playScript, playPreRecorded, userData.actionCategory, userData.behaviorPlan, currentScript.script, currentScript.audioUrl, hasStarted, userData.name, userData.quizAnswer]);
 
   useEffect(() => {
     if (hasStarted) {
@@ -152,6 +236,7 @@ const App: React.FC = () => {
   };
 
   const handleNext = async () => {
+    await unlockAudio();
     // Logic specific to steps before moving next
     if (isLoading || isSpeaking || isTTSLoading) return;
 
@@ -172,13 +257,32 @@ const App: React.FC = () => {
       const category = localClassifyUserAction(inputValue);
       setUserData(prev => ({ ...prev, actionCategory: category }));
       setIsLoading(false);
+
+      // Branching:
+      // - If user answered "none" -> go to Step 6 (encouragement)
+      // - Otherwise -> skip Step 6 and go directly to Step 7 (follow-up question)
+      const stepAdvance = category === 'NONE' ? 1 : 2;
+      if (currentStepIndex < STEP_SEQUENCE.length - 1) {
+        setIsTextVisible(false);
+        setCurrentStepIndex(prev => prev + stepAdvance);
+      }
+      return;
+    }
+
+    // If we are on Step 6 (NONE path), skip Step 7 and go to the scale.
+    if (currentStepId === StepId.STEP_06_ACTION_FEEDBACK) {
+      if (currentStepIndex < STEP_SEQUENCE.length - 1) {
+        setIsTextVisible(false);
+        setCurrentStepIndex(prev => prev + 2);
+      }
+      return;
     }
     
     // Save other inputs
     if (currentStepId === StepId.STEP_01_GREETING) setUserData(prev => ({ ...prev, name: inputValue }));
     if (currentStepId === StepId.STEP_07_BEHAVIOR_PLAN) setUserData(prev => ({ ...prev, behaviorPlan: inputValue }));
     if (currentStepId === StepId.STEP_10_ORG_FEEDBACK) setUserData(prev => ({ ...prev, orgFeedback: inputValue }));
-    if (currentStepId === StepId.STEP_11_DONATION) {
+    if (currentStepId === StepId.STEP_12_DONATION) {
         const val = parseInt(inputValue, 10);
         if (isNaN(val) || val < 0 || val > 100) {
             alert("請輸入 0-100 之間的金額");
@@ -210,8 +314,16 @@ const App: React.FC = () => {
       }
     }
 
-    if (currentStepId === StepId.STEP_06_ACTION_FEEDBACK) {
-       displayText = ACTION_FEEDBACK_TEMPLATES[userData.actionCategory] || ACTION_FEEDBACK_TEMPLATES.NONE;
+    // Step 8: Match display with the branching intro
+    if (currentStepId === StepId.STEP_08_COMMITMENT_SCALE) {
+      const hasBehaviorPlan = (userData.behaviorPlan || '').trim().length > 0;
+      if (userData.actionCategory === 'NONE') {
+        displayText = '接下來有個簡單的測驗想請你回答。';
+      } else if (hasBehaviorPlan) {
+        displayText = '很棒，你真的是一個永續人，謝謝你的用心。接下來有個簡單的測驗想請你回答。';
+      } else {
+        displayText = '那也沒關係，原本我跟你說的那些永續行動方法我覺得你一定也可以在生活中嘗試看看，我相信你一定可以成為一個永續人的。接下來有個簡單的測驗想請你回答。';
+      }
     }
 
     // 2. Render Body
@@ -264,6 +376,7 @@ const App: React.FC = () => {
                 key={opt.id}
                 onClick={() => {
                   if (isSpeaking || isTTSLoading) return; // Block input while speaking
+                  unlockAudio();
                   setUserData(prev => ({...prev, quizAnswer: opt.id}));
                   setTimeout(() => handleNext(), 300); // Auto advance after selection
                 }}
@@ -293,7 +406,7 @@ const App: React.FC = () => {
 
         {currentStepId === StepId.STEP_08_COMMITMENT_SCALE && (
             <div className="flex flex-col gap-8 bg-white p-4 rounded-xl border border-slate-200">
-                {COMMITMENT_QUESTIONS.map((q) => (
+            {COMMITMENT_QUESTIONS.map((q) => (
                     <div key={q.id} className="flex flex-col gap-3 pb-4 border-b border-slate-100 last:border-0">
                         <p className="font-bold text-slate-800">{q.text}</p>
                         <div className="flex justify-between items-center px-2">
@@ -323,7 +436,39 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {currentStepId === StepId.STEP_11_DONATION && (
+            {currentStepId === StepId.STEP_11_SELF_IDENTITY_SCALE && (
+              <div className="flex flex-col gap-8 bg-white p-4 rounded-xl border border-slate-200">
+                {SELF_IDENTITY_QUESTIONS.map((q) => (
+                  <div key={q.id} className="flex flex-col gap-3 pb-4 border-b border-slate-100 last:border-0">
+                    <p className="font-bold text-slate-800">{q.text}</p>
+                    <div className="flex justify-between items-center px-2">
+                      <span className="text-xs font-semibold text-slate-500">非常不同意</span>
+                      <div className="flex gap-4">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <label key={val} className="flex flex-col items-center cursor-pointer group">
+                            <input 
+                              type="radio" 
+                              name={q.id} 
+                              value={val}
+                              checked={userData.commitmentAnswers[q.id] === val}
+                              onChange={() => setUserData(prev => ({
+                                ...prev, 
+                                commitmentAnswers: { ...prev.commitmentAnswers, [q.id]: val }
+                              }))}
+                              className="w-5 h-5 text-emerald-500 focus:ring-emerald-400 accent-emerald-500"
+                            />
+                            <span className="text-xs mt-1 text-slate-600 font-medium group-hover:text-emerald-600">{val}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-500">非常同意</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+        {currentStepId === StepId.STEP_12_DONATION && (
             <div className="flex flex-col items-center py-6">
                 <div className="text-4xl font-bold text-emerald-600 mb-2">
                     ${inputValue || 0}
@@ -332,7 +477,7 @@ const App: React.FC = () => {
                     type="range" 
                     min="0" 
                     max="100" 
-                    step="5"
+              step="10"
                     value={inputValue || 0}
                     onChange={(e) => setInputValue(e.target.value)}
                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
@@ -345,7 +490,7 @@ const App: React.FC = () => {
         )}
 
         {/* 3. Navigation Controls */}
-        {currentStepId !== StepId.STEP_03_VIDEO_QUIZ && currentStepId !== StepId.STEP_12_END && (
+        {currentStepId !== StepId.STEP_03_VIDEO_QUIZ && currentStepId !== StepId.STEP_13_END && (
             <div className="sticky bottom-6 z-20 mt-4">
                 <button
                     onClick={handleNext}
@@ -376,7 +521,7 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {currentStepId === StepId.STEP_12_END && (
+        {currentStepId === StepId.STEP_13_END && (
              <div className="text-center p-6 bg-emerald-50 rounded-xl border border-emerald-100">
                 <h3 className="text-xl font-bold text-emerald-800 mb-2">實驗完成</h3>
                 <p className="text-emerald-600 mb-4 font-medium">請依照教室指示進行後續動作。</p>
@@ -411,6 +556,7 @@ const App: React.FC = () => {
             <button 
               onClick={() => {
                 setIsTextVisible(false); // Reset before starting
+                unlockAudio();
                 setHasStarted(true);
               }}
               className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-95"
