@@ -1,0 +1,7 @@
+{
+  "name": "EcoAction Experiment",
+  "description": "A research-grade interactive web application for measuring sustainable behavior intentions using React, TypeScript, and Gemini API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
