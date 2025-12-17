@@ -237,10 +237,32 @@ const App: React.FC = () => {
     return 'NONE';
   };
 
+  // Helper: check if all questions in a scale have valid answers (1-5)
+  const areAllItemsAnswered = (questions: { id: string }[]) => {
+    return questions.every((q) => {
+      const v = userData.commitmentAnswers[q.id];
+      return typeof v === 'number' && v >= 1 && v <= 5;
+    });
+  };
+
   const handleNext = async () => {
     await unlockAudio();
     // Logic specific to steps before moving next
     if (isLoading || isSpeaking || isTTSLoading) return;
+
+    // Extra safety check for the two likert scales: require each question to be answered 1-5
+    if (currentStepId === StepId.STEP_08_COMMITMENT_SCALE) {
+      if (!areAllItemsAnswered(COMMITMENT_QUESTIONS)) {
+        alert('請為每一題選擇 1–5 分，才能繼續。');
+        return;
+      }
+    }
+    if (currentStepId === StepId.STEP_11_SELF_IDENTITY_SCALE) {
+      if (!areAllItemsAnswered(SELF_IDENTITY_QUESTIONS)) {
+        alert('請為每一題選擇 1–5 分，才能繼續。');
+        return;
+      }
+    }
 
     // Special handling for Step 0 (Consent)
     if (currentStepId === StepId.STEP_00_INTRO) {
@@ -510,15 +532,17 @@ const App: React.FC = () => {
                 <button
                     onClick={handleNext}
                     disabled={
-                      isLoading || 
-                      isSpeaking || 
-                      isTTSLoading ||
-                      (currentStepId === StepId.STEP_02_VIDEO_INTRO && !isVideoFinished)
-                    }
+                          isLoading || 
+                          isSpeaking || 
+                          isTTSLoading ||
+                          (currentStepId === StepId.STEP_02_VIDEO_INTRO && !isVideoFinished) ||
+                          (currentStepId === StepId.STEP_08_COMMITMENT_SCALE && !areAllItemsAnswered(COMMITMENT_QUESTIONS)) ||
+                          (currentStepId === StepId.STEP_11_SELF_IDENTITY_SCALE && !areAllItemsAnswered(SELF_IDENTITY_QUESTIONS))
+                        }
                     className={`w-full py-4 rounded-xl text-white font-bold tracking-wide shadow-lg shadow-emerald-100 transition-all active:scale-[0.98] ${
-                        (isLoading || isSpeaking || isTTSLoading || (currentStepId === StepId.STEP_02_VIDEO_INTRO && !isVideoFinished))
-                          ? 'bg-slate-400 cursor-not-allowed' 
-                          : 'bg-emerald-500 hover:bg-emerald-600'
+                            (isLoading || isSpeaking || isTTSLoading || (currentStepId === StepId.STEP_02_VIDEO_INTRO && !isVideoFinished) || (currentStepId === StepId.STEP_08_COMMITMENT_SCALE && !areAllItemsAnswered(COMMITMENT_QUESTIONS)) || (currentStepId === StepId.STEP_11_SELF_IDENTITY_SCALE && !areAllItemsAnswered(SELF_IDENTITY_QUESTIONS)))
+                              ? 'bg-slate-400 cursor-not-allowed' 
+                              : 'bg-emerald-500 hover:bg-emerald-600'
                     }`}
                 >
                     {isLoading || isTTSLoading ? (
