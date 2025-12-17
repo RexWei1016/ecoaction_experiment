@@ -42,6 +42,8 @@ const STEP_SEQUENCE = [
   StepId.STEP_13_END,
 ];
 
+const FINAL_FORM_URL = 'https://forms.gle/1odkttJ7fM6zyYZg7';
+
 const App: React.FC = () => {
   // State
   const [hasStarted, setHasStarted] = useState(false);
@@ -335,6 +337,19 @@ const App: React.FC = () => {
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-t border-l border-slate-100 transform rotate-45"></div>
           <p className="text-lg text-slate-800 font-medium leading-relaxed whitespace-pre-line w-full">
             <TypewriterText text={displayText} start={isTextVisible} />
+            {currentStepId === StepId.STEP_13_END && (
+              <>
+                {'\n'}
+                <a
+                  href={FINAL_FORM_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-600 underline font-semibold break-all"
+                >
+                  {FINAL_FORM_URL}
+                </a>
+              </>
+            )}
           </p>
         </div>
 
@@ -525,6 +540,14 @@ const App: React.FC = () => {
              <div className="text-center p-6 bg-emerald-50 rounded-xl border border-emerald-100">
                 <h3 className="text-xl font-bold text-emerald-800 mb-2">實驗完成</h3>
                 <p className="text-emerald-600 mb-4 font-medium">請依照教室指示進行後續動作。</p>
+                <a
+                  href={FINAL_FORM_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block mb-4 text-emerald-700 underline font-semibold break-all"
+                >
+                  {FINAL_FORM_URL}
+                </a>
                 <button 
                   onClick={() => window.close()}
                   className="px-6 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg text-sm hover:bg-slate-300"
