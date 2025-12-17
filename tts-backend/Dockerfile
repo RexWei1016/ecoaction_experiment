@@ -2,6 +2,9 @@
 # For GPU support, use: FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 FROM python:3.10-slim
 
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
 WORKDIR /app
 
 # Install system dependencies (if needed for audio libraries like sndfile)
@@ -42,5 +45,5 @@ RUN if [ "$DOWNLOAD_MODELS" = "1" ]; then \
 EXPOSE 8000
 
 # Run the application
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
