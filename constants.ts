@@ -23,7 +23,9 @@ export const SYSTEM_CONFIG = {
   }
 };
 
-export const VIDEO_URL = 'https://youtu.be/QpEsuZdl9Aw?si=Wgan6mgGK8fkYO1J';
+// export const VIDEO_URL = 'https://youtu.be/QpEsuZdl9Aw?si=Wgan6mgGK8fkYO1J';
+export const VIDEO_URL = 'https://youtu.be/T8ILkgqrdJw?si=V0L3i_KuB72uFbJj';
+// https://www.youtube.com/watch?v=T8ILkgqrdJw 
 
 // Pre-generated audio assets served from Vite public/
 // These files are produced by the offline TTS backend and checked into public/tts/.
@@ -97,7 +99,7 @@ export const SCRIPTS: Record<StepId, StepConfig> = {
   [StepId.STEP_06_ACTION_FEEDBACK]: {
     id: StepId.STEP_06_ACTION_FEEDBACK,
     type: 'info',
-    script: `沒關係的，我相信你也有那分心意想要讓地球更好，在接下來的幾天，我也想邀請你在生活中也嘗試看看~雖然不會立刻有效，但我覺得這樣的心意遲早有一天會對我們的地球帶來一些改變`,
+    script: `我可以理解，在生活中，突然要改變原有的習慣並不容易。況且要付出額外的心力或時間來準備環保杯、環保提袋這些事情確實會複雜一點。但是我相信你也有那分心意想要讓地球更好，在接下來的幾天，如果你不介意，我想邀請你在生活中也可以嘗試看看，雖然不會立刻有效，但我覺得這樣的心意遲早有一天會對我們的地球帶來一些改變`,
     audioUrl: PRE_RECORDED_AUDIO.STEP_06_ACTION_NONE,
     nextLabel: '繼續',
   },

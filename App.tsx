@@ -24,6 +24,9 @@ import {
 // Use Custom TTS for generation capability (async loading)
 import { playCustomTTS as speakText, playAudioUrl, stopCustomSpeech as stopSpeech } from './services/customTtsService';
 
+// API for data submission
+import { sendToGAS } from './api/sendToGAS';
+
 // Step order definition
 const STEP_SEQUENCE = [
   StepId.STEP_00_INTRO,
@@ -56,6 +59,7 @@ const App: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isVideoFinished, setIsVideoFinished] = useState(false);
   const hasUnlockedAudioRef = useRef(false);
+  const hasSentDataRef = useRef(false); // Prevent duplicate submission
   
   // Refs
   const currentStepId = STEP_SEQUENCE[currentStepIndex];
@@ -229,6 +233,20 @@ const App: React.FC = () => {
     }
   }, [currentStepIndex, hasStarted]);
 
+  // Submit data to GAS when reaching STEP_13_END (only once)
+  useEffect(() => {
+    if (currentStepId === StepId.STEP_13_END && !hasSentDataRef.current) {
+      hasSentDataRef.current = true;
+      
+      console.log('📤 資料已發送至 Google Sheets（no-cors 模式）');
+      console.log('📦 UserData:', JSON.stringify(userData, null, 2));
+      console.log('ℹ️ 使用 no-cors 模式，無法取得響應狀態');
+      console.log('ℹ️ 請透過 Google Sheets 確認資料是否成功寫入');
+      
+      sendToGAS(userData);
+    }
+  }, [currentStepId, userData]);
+
   // Handlers
   const localClassifyUserAction = (text: string): ActionCategory => {
     const lower = text.toLowerCase();
@@ -378,13 +396,13 @@ const App: React.FC = () => {
         {/* Step Specific Interactions */}
         {currentStepId === StepId.STEP_00_INTRO && (
            <div className="flex flex-col gap-2">
-               <label className="text-sm font-bold text-slate-700">請輸入學號或編號</label>
+               <label className="text-sm font-bold text-slate-700">請輸入學號</label>
                <input 
                  type="text" 
                  className="p-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-400 outline-none text-slate-900 font-medium"
                  value={userData.participantId}
                  onChange={(e) => setUserData({...userData, participantId: e.target.value})}
-                 placeholder="例如: S112001"
+                 placeholder="例如: D124020001"
                />
            </div>
         )}
