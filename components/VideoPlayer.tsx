@@ -10,12 +10,14 @@ declare global {
 interface VideoPlayerProps {
   videoId: string;
   onEnded: () => void;
+  shouldPlay?: boolean;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, onEnded }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, onEnded, shouldPlay = false }) => {
   const playerRef = useRef<HTMLDivElement>(null);
   const playerInstance = useRef<any>(null);
   const isReady = useRef(false);
+  const hasStartedPlaying = useRef(false);
 
   useEffect(() => {
     // Check if YouTube API is fully loaded (YT and YT.Player must exist)
@@ -52,7 +54,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, onEnded }) => {
             'playsinline': 1,
             'rel': 0,
             'modestbranding': 1,
-            'autoplay': 1, // Enable autoplay
+            'autoplay': 0, // Disable autoplay, wait for shouldPlay signal
             'controls': 1, // Show controls so user can unmute if needed
           },
           events: {
@@ -67,7 +69,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, onEnded }) => {
     }
 
     function onPlayerReady(event: any) {
-        event.target.playVideo();
+        // Do not auto-play, wait for shouldPlay signal
     }
 
     function onPlayerStateChange(event: any) {
@@ -78,7 +80,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, onEnded }) => {
     }
 
     return () => {};
-  }, [videoId]); 
+  }, [videoId]);
+
+  // 當 shouldPlay 為 true 且尚未開始播放時，開始播放影片
+  useEffect(() => {
+    if (shouldPlay && !hasStartedPlaying.current && playerInstance.current && playerInstance.current.playVideo) {
+      hasStartedPlaying.current = true;
+      try {
+        playerInstance.current.playVideo();
+      } catch (e) {
+        console.error('Error starting video playback', e);
+      }
+    }
+  }, [shouldPlay]); 
 
   return (
     <div className="aspect-video w-full bg-black rounded-xl overflow-hidden shadow-lg relative">

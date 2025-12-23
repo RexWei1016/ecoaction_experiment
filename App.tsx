@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false); // General loading (e.g. API)
   const [inputValue, setInputValue] = useState('');
   const [isVideoFinished, setIsVideoFinished] = useState(false);
+  const [shouldStartVideo, setShouldStartVideo] = useState(false);
   const hasUnlockedAudioRef = useRef(false);
   const hasSentDataRef = useRef(false); // Prevent duplicate submission
   
@@ -147,6 +148,7 @@ const App: React.FC = () => {
     stopSpeech();
     setInputValue(''); // Reset input on step change
     setIsVideoFinished(false); // Reset video state
+    setShouldStartVideo(false); // Reset video start state
     
     // Determine the actual text to display/speak
     let textToPlay = currentScript.script;
@@ -192,12 +194,22 @@ const App: React.FC = () => {
           setIsSpeaking(true);
           setIsTTSLoading(true);
 
-          speakText(nameChant, { engine: 'local' }, async () => {
+          speakText(nameChant, { engine: 'local' }, () => {
             setIsTTSLoading(false);
             if (audioUrlToPlay) {
-              await playPreRecorded(audioUrlToPlay);
+              // 播放第二段音頻，並在其 onEnd 回調中開始影片
+              playAudioUrl(audioUrlToPlay, () => {
+                setIsSpeaking(false);
+                // 確保在第二段語音播放完畢後才開始影片
+                setShouldStartVideo(true);
+              }).catch((e) => {
+                console.error('Audio Error', e);
+                setIsSpeaking(false);
+                setShouldStartVideo(true);
+              });
             } else {
               setIsSpeaking(false);
+              setShouldStartVideo(true);
             }
           }).then(() => {
             setIsTextVisible(true);
@@ -205,9 +217,16 @@ const App: React.FC = () => {
             console.error('Name TTS Error', e);
             setIsTTSLoading(false);
             if (audioUrlToPlay) {
-              playPreRecorded(audioUrlToPlay);
+              playAudioUrl(audioUrlToPlay, () => {
+                setIsSpeaking(false);
+                setShouldStartVideo(true);
+              }).catch(() => {
+                setIsSpeaking(false);
+                setShouldStartVideo(true);
+              });
             } else {
               setIsSpeaking(false);
+              setShouldStartVideo(true);
             }
             setIsTextVisible(true);
           });
@@ -421,6 +440,7 @@ const App: React.FC = () => {
           <VideoPlayer 
             videoId={getYouTubeId(VIDEO_URL) || 'XqC9j5qX2V8'}
             onEnded={() => setIsVideoFinished(true)}
+            shouldPlay={shouldStartVideo}
           />
         )}
 
