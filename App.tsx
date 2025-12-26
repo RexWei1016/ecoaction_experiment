@@ -45,7 +45,7 @@ const STEP_SEQUENCE = [
   StepId.STEP_13_END,
 ];
 
-const FINAL_FORM_URL = 'https://forms.gle/1odkttJ7fM6zyYZg7';
+const FINAL_FORM_URL = 'https://forms.gle/C37hgKpWPdv4zStJ6';
 
 const App: React.FC = () => {
   // State
